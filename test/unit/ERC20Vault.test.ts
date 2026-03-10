@@ -1,23 +1,38 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { ERC20Vault, MockERC20 } from "../../typechain-types";
+import { ERC20Vault, MockERC20, VaultFactory } from "../../typechain-types";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("ERC20Vault", function () {
   const AMOUNT = 1000n * 10n ** 6n;
   const INV_HASH = ethers.keccak256(ethers.toUtf8Bytes("INV-001"));
+  const VAULT_TYPE = ethers.keccak256(ethers.toUtf8Bytes("ERC20Vault"));
+
+  async function parseVaultCreated(vaultFactory: VaultFactory, tx: any): Promise<string> {
+    const receipt = await tx.wait();
+    const event = receipt!.logs.map((l: any) => {
+      try { return vaultFactory.interface.parseLog({ topics: l.topics as string[], data: l.data }); }
+      catch { return null; }
+    }).find((e: any) => e?.name === "VaultCreated");
+    return event!.args.vault;
+  }
 
   async function deployFixture() {
     const [_deployer, owner, contractor, stranger] = await ethers.getSigners();
 
     const usdc = await (await ethers.getContractFactory("MockERC20")).deploy("USD Coin", "USDC", 6) as MockERC20;
-    const vault = await (await ethers.getContractFactory("ERC20Vault")).deploy(owner.address, await usdc.getAddress()) as ERC20Vault;
+
+    const vaultFactory = await (await ethers.getContractFactory("VaultFactory")).deploy() as VaultFactory;
+    await vaultFactory.registerVaultType(VAULT_TYPE, (await ethers.getContractFactory("ERC20Vault")).bytecode);
+
+    const tx = await vaultFactory.connect(owner).createVault(VAULT_TYPE, await usdc.getAddress());
+    const vault = await ethers.getContractAt("ERC20Vault", await parseVaultCreated(vaultFactory, tx)) as ERC20Vault;
 
     await usdc.mint(owner.address, 100_000n * 10n ** 6n);
     await usdc.connect(owner).approve(await vault.getAddress(), ethers.MaxUint256);
 
-    return { vault, usdc, owner, contractor, stranger };
+    return { vault, usdc, owner, contractor, stranger, vaultFactory };
   }
 
   // ── Constructor ─────────────────────────────────────────────────────
@@ -35,9 +50,10 @@ describe("ERC20Vault", function () {
 
     it("reverts on zero USDC address", async function () {
       const [_, owner] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("ERC20Vault");
-      await expect(factory.deploy(owner.address, ethers.ZeroAddress))
-        .to.be.revertedWithCustomError({ interface: factory.interface } as any, "ZeroAddress");
+      const vaultFactory = await (await ethers.getContractFactory("VaultFactory")).deploy() as VaultFactory;
+      await vaultFactory.registerVaultType(VAULT_TYPE, (await ethers.getContractFactory("ERC20Vault")).bytecode);
+      await expect(vaultFactory.connect(owner).createVault(VAULT_TYPE, ethers.ZeroAddress))
+        .to.be.revertedWithCustomError(vaultFactory, "DeploymentFailed");
     });
   });
 
@@ -71,8 +87,9 @@ describe("ERC20Vault", function () {
     });
 
     it("reverts if no approval", async function () {
-      const { usdc, stranger } = await loadFixture(deployFixture);
-      const vault2 = await (await ethers.getContractFactory("ERC20Vault")).deploy(stranger.address, await usdc.getAddress());
+      const { usdc, stranger, vaultFactory } = await loadFixture(deployFixture);
+      const tx = await vaultFactory.connect(stranger).createVault(VAULT_TYPE, await usdc.getAddress());
+      const vault2 = await ethers.getContractAt("ERC20Vault", await parseVaultCreated(vaultFactory, tx));
       await usdc.mint(stranger.address, AMOUNT);
       await expect(vault2.connect(stranger).depositFunds(AMOUNT)).to.be.reverted;
     });

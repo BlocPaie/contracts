@@ -3,34 +3,46 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import * as hre from "hardhat";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { ConfidentialVault, MockConfidentialERC20 } from "../../typechain-types";
+import { ConfidentialUSDC, ConfidentialVault, MockERC20, VaultFactory } from "../../typechain-types";
 
 describe("ConfidentialVault", function () {
   const INV_HASH = ethers.keccak256(ethers.toUtf8Bytes("INV-001"));
   const AMOUNT = 1_000n;
+  const VAULT_TYPE = ethers.keccak256(ethers.toUtf8Bytes("ConfidentialVault"));
 
   // ── Fixture ──────────────────────────────────────────────────────────
 
   async function deployFixture() {
     const [_deployer, owner, payee, stranger] = await ethers.getSigners();
 
-    const token = (await (
-      await ethers.getContractFactory("MockConfidentialERC20")
-    ).deploy()) as MockConfidentialERC20;
-    await hre.fhevm.assertCoprocessorInitialized(token, "MockConfidentialERC20");
+    const usdc = await (await ethers.getContractFactory("MockERC20")).deploy("USD Coin", "USDC", 6) as MockERC20;
 
-    const vault = (await (
-      await ethers.getContractFactory("ConfidentialVault")
-    ).deploy(owner.address, await token.getAddress())) as ConfidentialVault;
+    const token = (await (
+      await ethers.getContractFactory("ConfidentialUSDC")
+    ).deploy(await usdc.getAddress())) as ConfidentialUSDC;
+    await hre.fhevm.assertCoprocessorInitialized(token, "ConfidentialUSDC");
+
+    const vaultFactory = await (await ethers.getContractFactory("VaultFactory")).deploy() as VaultFactory;
+    await vaultFactory.registerVaultType(VAULT_TYPE, (await ethers.getContractFactory("ConfidentialVault")).bytecode);
+
+    const tx = await vaultFactory.connect(owner).createVault(VAULT_TYPE, await token.getAddress());
+    const receipt = await tx.wait();
+    const event = receipt!.logs.map((l: any) => {
+      try { return vaultFactory.interface.parseLog({ topics: l.topics as string[], data: l.data }); }
+      catch { return null; }
+    }).find((e: any) => e?.name === "VaultCreated");
+    const vault = await ethers.getContractAt("ConfidentialVault", event!.args.vault) as ConfidentialVault;
     await hre.fhevm.assertCoprocessorInitialized(vault, "ConfidentialVault");
 
-    // Mint to owner and grant vault operator rights for transferFrom
-    await token.mint(owner.address, 100_000n);
+    // Wrap USDC → cUSDC for owner, then grant vault operator rights for transferFrom
+    await usdc.mint(owner.address, 100_000n);
+    await usdc.connect(owner).approve(await token.getAddress(), 100_000n);
+    await token.connect(owner).wrap(owner.address, 100_000n);
     await token
       .connect(owner)
       .setOperator(await vault.getAddress(), 281474976710655n); // uint48 max
 
-    return { vault, token, owner, payee, stranger };
+    return { vault, token, usdc, owner, payee, stranger, vaultFactory };
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────
@@ -521,11 +533,10 @@ describe("ConfidentialVault", function () {
 
     it("reverts ZeroAddress on zero token address", async function () {
       const [_, owner] = await ethers.getSigners();
-      const factory = await ethers.getContractFactory("ConfidentialVault");
-      await expect(factory.deploy(owner.address, ethers.ZeroAddress)).to.be.revertedWithCustomError(
-        { interface: factory.interface } as any,
-        "ZeroAddress"
-      );
+      const vaultFactory = await (await ethers.getContractFactory("VaultFactory")).deploy() as VaultFactory;
+      await vaultFactory.registerVaultType(VAULT_TYPE, (await ethers.getContractFactory("ConfidentialVault")).bytecode);
+      await expect(vaultFactory.connect(owner).createVault(VAULT_TYPE, ethers.ZeroAddress))
+        .to.be.revertedWithCustomError(vaultFactory, "DeploymentFailed");
     });
   });
 });
