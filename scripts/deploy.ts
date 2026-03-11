@@ -1,4 +1,6 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -39,6 +41,27 @@ async function main() {
   await tx2.wait();
   console.log("ConfidentialVault type registered:", CONF_VAULT_TYPE);
 
+  // ── Save deployment ───────────────────────────────────────────────
+  const deployment = {
+    network: network.name,
+    chainId: (await ethers.provider.getNetwork()).chainId.toString(),
+    deployer: deployer.address,
+    contracts: {
+      MockUSDC: usdcAddr,
+      ConfidentialUSDC: confidentialUsdcAddr,
+      VaultFactory: factoryAddr,
+    },
+    vaultTypes: {
+      ERC20Vault: ERC20_VAULT_TYPE,
+      ConfidentialVault: CONF_VAULT_TYPE,
+    },
+  };
+
+  const deploymentsDir = path.join(__dirname, "../deployments");
+  fs.mkdirSync(deploymentsDir, { recursive: true });
+  const outPath = path.join(deploymentsDir, `${network.name}.json`);
+  fs.writeFileSync(outPath, JSON.stringify(deployment, null, 2));
+
   // ── Summary ────────────────────────────────────────────────────────
   console.log("\nDeployment complete:");
   console.log("  MockUSDC:          ", usdcAddr);
@@ -46,6 +69,7 @@ async function main() {
   console.log("  VaultFactory:      ", factoryAddr);
   console.log("  ERC20Vault type:   ", ERC20_VAULT_TYPE);
   console.log("  ConfVault type:    ", CONF_VAULT_TYPE);
+  console.log(`\nSaved to deployments/${network.name}.json`);
 }
 
 main().catch((error) => {

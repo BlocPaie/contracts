@@ -5,7 +5,8 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy": "hardhat run scripts/deploy.ts"
+    "deploy": "hardhat run scripts/deploy.ts",
+    "export-abi": "ts-node scripts/export-abi.ts"
   },
   "devDependencies": {
     "@fhevm/hardhat-plugin": "^0.4.2",
