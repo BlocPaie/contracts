@@ -164,7 +164,7 @@ describe("ERC20Vault", function () {
       const cheque = await vault.getCheque(contractor.address, 0);
       expect(cheque.invoiceHash).to.equal(INV_HASH);
       expect(cheque.amount).to.equal(500n * 10n ** 6n);
-      expect(cheque.status).to.equal(0); // Pending
+      expect(cheque.status).to.equal(1); // Pending
     });
 
     it("emits ChequeCreated event", async function () {
@@ -254,7 +254,7 @@ describe("ERC20Vault", function () {
       expect(await vault.allocatedBalance()).to.equal(0);
 
       const cheque = await vault.getCheque(contractor.address, 0);
-      expect(cheque.status).to.equal(1); // Executed
+      expect(cheque.status).to.equal(2); // Executed
     });
 
     it("emits ChequeExecuted event", async function () {
@@ -318,7 +318,7 @@ describe("ERC20Vault", function () {
 
       expect(await vault.allocatedBalance()).to.equal(0);
       const cheque = await vault.getCheque(contractor.address, 0);
-      expect(cheque.status).to.equal(2); // Cancelled
+      expect(cheque.status).to.equal(3); // Cancelled
     });
 
     it("emits ChequeCancelled event", async function () {

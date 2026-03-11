@@ -109,8 +109,8 @@ describe("PayrollFlow (integration)", function () {
     const c1 = await vault.getCheque(contractor1.address, chequeId1);
     const c2 = await vault.getCheque(contractor2.address, chequeId2);
     const c3 = await vault.getCheque(contractor1.address, chequeId3);
-    expect(c1.status).to.equal(1); // Executed
-    expect(c2.status).to.equal(1); // Executed
-    expect(c3.status).to.equal(2); // Cancelled
+    expect(c1.status).to.equal(2); // Executed
+    expect(c2.status).to.equal(2); // Executed
+    expect(c3.status).to.equal(3); // Cancelled
   });
 });

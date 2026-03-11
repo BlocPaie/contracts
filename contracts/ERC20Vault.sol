@@ -11,6 +11,7 @@ contract ERC20Vault is Ownable {
     // ── Types ──────────────────────────────────────────────────────────
 
     enum ChequeStatus {
+        NotCreated,
         Pending,
         Executed,
         Cancelled

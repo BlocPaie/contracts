@@ -10,7 +10,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
 
     // ── Types ──────────────────────────────────────────────────────────
 
-    enum ChequeStatus { Pending, Executed, Cancelled }
+    enum ChequeStatus { NotCreated, Pending, Executed, Cancelled }
 
     struct ConfidentialCheque {
         bytes32 invoiceHash;    // plaintext
@@ -79,6 +79,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         TOKEN = _token;
         _allocatedBalance = FHE.asEuint64(0);
         FHE.allowThis(_allocatedBalance);
+        FHE.allow(_allocatedBalance, _owner);
         _initializeErrorCodes();
     }
 
@@ -118,6 +119,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 effective = FHE.select(sufficient, amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.add(_allocatedBalance, effective);
         FHE.allowThis(_allocatedBalance);
+        FHE.allow(_allocatedBalance, owner());
 
         invoiceRegistry[invoiceHash] = true;
 
@@ -161,6 +163,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 deduction = FHE.select(isPending, cheque.amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.sub(_allocatedBalance, deduction);
         FHE.allowThis(_allocatedBalance);
+        FHE.allow(_allocatedBalance, owner());
 
         _setLastError(FHE.select(isPending, _NO_ERROR, _NOT_PENDING), msg.sender);
 
@@ -211,6 +214,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 transferAmount = FHE.select(canExecute, cheque.amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.sub(_allocatedBalance, transferAmount);
         FHE.allowThis(_allocatedBalance);
+        FHE.allow(_allocatedBalance, owner());
 
         FHE.allowTransient(transferAmount, TOKEN);
         IERC7984(TOKEN).confidentialTransfer(msg.sender, transferAmount);

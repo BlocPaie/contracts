@@ -161,7 +161,7 @@ describe("ConfidentialVault", function () {
 
       expect(decPayee.toLowerCase()).to.equal(payee.address.toLowerCase());
       expect(decAmount).to.equal(AMOUNT);
-      expect(decStatus).to.equal(0n); // ChequeStatus.Pending
+      expect(decStatus).to.equal(1n); // ChequeStatus.Pending
     });
 
     it("increments chequeCount after registration", async function () {
@@ -241,7 +241,7 @@ describe("ConfidentialVault", function () {
 
       const cheque = await vault.getCheque(0);
       const decStatus = await decryptU8(cheque.status, vaultAddr, owner);
-      expect(decStatus).to.equal(2n); // ChequeStatus.Cancelled
+      expect(decStatus).to.equal(3n); // ChequeStatus.Cancelled
 
       const [errorHandle] = await vault.getLastError(owner.address);
       const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
@@ -272,7 +272,7 @@ describe("ConfidentialVault", function () {
 
       const cheque = await vault.getCheque(0);
       const decStatus = await decryptU8(cheque.status, vaultAddr, owner);
-      expect(decStatus).to.equal(2n); // still Cancelled
+      expect(decStatus).to.equal(3n); // still Cancelled
 
       const [errorHandle] = await vault.getLastError(owner.address);
       const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
@@ -358,7 +358,7 @@ describe("ConfidentialVault", function () {
 
       const cheque = await vault.getCheque(0);
       const decStatus = await decryptU8(cheque.status, vaultAddr, owner);
-      expect(decStatus).to.equal(1n); // ChequeStatus.Executed
+      expect(decStatus).to.equal(2n); // ChequeStatus.Executed
     });
 
     it("wrong caller receives 0 tokens, error code = 2, emits ChequeExecuteAttempted", async function () {

@@ -191,8 +191,8 @@ describe("ConfidentialVault (end-to-end)", function () {
     expect(await usdc.balanceOf(tokenAddr)).to.equal(0n);             // wrapper contract drained
 
     // ── Final cheque statuses ─────────────────────────────────────────
-    expect(await chequeStatus(0)).to.equal(1n); // Executed
-    expect(await chequeStatus(1)).to.equal(1n); // Executed
-    expect(await chequeStatus(2)).to.equal(2n); // Cancelled
+    expect(await chequeStatus(0)).to.equal(2n); // Executed
+    expect(await chequeStatus(1)).to.equal(2n); // Executed
+    expect(await chequeStatus(2)).to.equal(3n); // Cancelled
   });
 });
