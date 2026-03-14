@@ -206,6 +206,11 @@
         "internalType": "uint256",
         "name": "chequeId",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "decryptViewer",
+        "type": "address"
       }
     ],
     "name": "cancelCheque",
@@ -263,6 +268,11 @@
         "internalType": "uint256",
         "name": "chequeId",
         "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "decryptViewer",
+        "type": "address"
       }
     ],
     "name": "executeCheque",
@@ -367,6 +377,32 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getVaultBalance",
+    "outputs": [
+      {
+        "internalType": "euint64",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "viewer",
+        "type": "address"
+      }
+    ],
+    "name": "grantDecryptAccess",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -424,6 +460,11 @@
         "internalType": "bytes",
         "name": "amountProof",
         "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "decryptViewer",
+        "type": "address"
       }
     ],
     "name": "registerInvoice",
@@ -434,13 +475,6 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "requestAllocatedBalanceDecryption",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -469,6 +503,11 @@
         "internalType": "bytes",
         "name": "inputProof",
         "type": "bytes"
+      },
+      {
+        "internalType": "address",
+        "name": "decryptViewer",
+        "type": "address"
       }
     ],
     "name": "withdrawFunds",

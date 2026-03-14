@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
+import {FHE, euint64} from "@fhevm/solidity/lib/FHE.sol";
 import {ERC7984} from "./vendor/token/ERC7984/ERC7984.sol";
 import {ERC7984ERC20Wrapper} from "./vendor/token/ERC7984/extensions/ERC7984ERC20Wrapper.sol";
 
@@ -25,4 +26,17 @@ contract ConfidentialUSDC is ZamaEthereumConfig, ERC7984ERC20Wrapper {
         ERC7984("Confidential USDC", "cUSDC", "")
         ERC7984ERC20Wrapper(IERC20(usdc))
     {}
+
+    /// @notice Grant a secp256k1 viewer address ACL access to decrypt the caller's cUSDC balance.
+    ///         Same pattern as ConfidentialVault.grantDecryptAccess — caller generates an ephemeral
+    ///         secp256k1 key, passes it here, then signs Zama's EIP-712 locally without a passkey dialog.
+    /// @dev The token contract holds persistent ACL on all balance handles (via FHE.allowThis in _update),
+    ///      so it can call FHE.allow(bal, viewer) for any balance it owns.
+    ///      Timing: the balance handle changes on every _update. Call this after the tx that changes the
+    ///      balance confirms — then read confidentialBalanceOf to get the current handle for decryption.
+    function grantBalanceDecryptAccess(address viewer) external {
+        euint64 bal = confidentialBalanceOf(msg.sender);
+        if (!FHE.isInitialized(bal)) return;
+        FHE.allow(bal, viewer);
+    }
 }

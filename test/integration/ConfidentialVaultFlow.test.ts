@@ -70,8 +70,7 @@ describe("ConfidentialVault (end-to-end)", function () {
     }
 
     async function allocatedBalance(): Promise<bigint> {
-      await vault.connect(owner).requestAllocatedBalanceDecryption();
-      return hre.fhevm.userDecryptEuint(FhevmType.euint64, await vault.getAllocatedBalance(), vaultAddr, owner);
+      return hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await vault.getAllocatedBalance());
     }
 
     async function chequeStatus(id: number): Promise<bigint> {
@@ -128,29 +127,29 @@ describe("ConfidentialVault (end-to-end)", function () {
     const INV3 = ethers.keccak256(ethers.toUtf8Bytes("INV-003"));
 
     const inv1 = await encInvoice(payee1.address, AMT1);
-    await vault.connect(owner).registerInvoice(INV1, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof);
+    await vault.connect(owner).registerInvoice(INV1, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof, ethers.ZeroAddress);
 
     const inv2 = await encInvoice(payee2.address, AMT2);
-    await vault.connect(owner).registerInvoice(INV2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof);
+    await vault.connect(owner).registerInvoice(INV2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof, ethers.ZeroAddress);
 
     const inv3 = await encInvoice(payee1.address, AMT3);
-    await vault.connect(owner).registerInvoice(INV3, inv3.encPayee, inv3.payeeProof, inv3.encAmount, inv3.amountProof);
+    await vault.connect(owner).registerInvoice(INV3, inv3.encPayee, inv3.payeeProof, inv3.encAmount, inv3.amountProof, ethers.ZeroAddress);
 
     expect(await vault.chequeCount()).to.equal(3n);
     expect(await allocatedBalance()).to.equal(AMT1 + AMT2 + AMT3);
 
     // ── payee1 executes cheque 0 (claims AMT1 = 3,000 cUSDC) ─────────
-    await vault.connect(payee1).executeCheque(0);
+    await vault.connect(payee1).executeCheque(0, ethers.ZeroAddress);
     expect(await cUSDCBalance(payee1.address)).to.equal(AMT1);
     expect(await cUSDCBalance(vaultAddr)).to.equal(DEPOSIT - AMT1);
     expect(await allocatedBalance()).to.equal(AMT2 + AMT3);
 
     // ── owner cancels cheque 2 (payee1's second invoice, 2,000) ──────
-    await vault.connect(owner).cancelCheque(2);
+    await vault.connect(owner).cancelCheque(2, ethers.ZeroAddress);
     expect(await allocatedBalance()).to.equal(AMT2);
 
     // ── payee2 executes cheque 1 (claims AMT2 = 4,000 cUSDC) ─────────
-    await vault.connect(payee2).executeCheque(1);
+    await vault.connect(payee2).executeCheque(1, ethers.ZeroAddress);
     expect(await cUSDCBalance(payee2.address)).to.equal(AMT2);
     expect(await cUSDCBalance(vaultAddr)).to.equal(DEPOSIT - AMT1 - AMT2);
     expect(await allocatedBalance()).to.equal(0n);
@@ -158,7 +157,7 @@ describe("ConfidentialVault (end-to-end)", function () {
     // ── owner withdraws remaining unallocated cUSDC (3,000) ──────────
     const remaining = DEPOSIT - AMT1 - AMT2;
     const { enc: witEnc, proof: witProof } = await encU64ForVault(remaining);
-    await vault.connect(owner).withdrawFunds(witEnc, witProof);
+    await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
 
     expect(await cUSDCBalance(vaultAddr)).to.equal(0n);
     expect(await cUSDCBalance(owner.address)).to.equal(remaining);

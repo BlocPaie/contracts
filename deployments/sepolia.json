@@ -1,0 +1,14 @@
+{
+  "network": "sepolia",
+  "chainId": "11155111",
+  "deployer": "0xab3a8Dc2BED2C7e11EEd21722C4B8cebfD684345",
+  "contracts": {
+    "MockUSDC": "0xf1DfBFD875a5E4dAb6a041c4da27f8F0b1b5217f",
+    "ConfidentialUSDC": "0x83662eb8350e3Bf66666Bfbc673185379E11Af56",
+    "VaultFactory": "0xfB6760E4aa9eCe674Afc05Ec8c3F5a12384FEF9C"
+  },
+  "vaultTypes": {
+    "ERC20Vault": "0x874a5851062fb0ceba9892d93f766528d36b7886c5658869993f9154a34b5863",
+    "ConfidentialVault": "0xd05bd75f12c7ab593ca7d6b889107587a7efc84e0dee6bb4c10b813a613b42ac"
+  }
+}

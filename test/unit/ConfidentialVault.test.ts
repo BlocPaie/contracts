@@ -151,7 +151,7 @@ describe("ConfidentialVault", function () {
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
       await vault
         .connect(owner)
-        .registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+        .registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
       const cheque = await vault.getCheque(0);
       const decPayee = await decryptAddress(cheque.payee, vaultAddr, owner);
@@ -170,12 +170,12 @@ describe("ConfidentialVault", function () {
       expect(await vault.chequeCount()).to.equal(0n);
 
       const inv1 = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof, ethers.ZeroAddress);
       expect(await vault.chequeCount()).to.equal(1n);
 
       const INV_HASH_2 = ethers.keccak256(ethers.toUtf8Bytes("INV-002"));
       const inv2 = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH_2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH_2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof, ethers.ZeroAddress);
       expect(await vault.chequeCount()).to.equal(2n);
     });
 
@@ -184,7 +184,7 @@ describe("ConfidentialVault", function () {
       const vaultAddr = await vault.getAddress();
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
       await expect(
-        vault.connect(owner).registerInvoice(ethers.ZeroHash, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof)
+        vault.connect(owner).registerInvoice(ethers.ZeroHash, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(vault, "InvalidInvoiceHash");
     });
 
@@ -192,10 +192,10 @@ describe("ConfidentialVault", function () {
       const { vault, owner, payee } = await deployFixture();
       const vaultAddr = await vault.getAddress();
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
       const inv2 = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
       await expect(
-        vault.connect(owner).registerInvoice(INV_HASH, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof)
+        vault.connect(owner).registerInvoice(INV_HASH, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(vault, "InvoiceAlreadyRegistered");
     });
 
@@ -204,9 +204,9 @@ describe("ConfidentialVault", function () {
       const vaultAddr = await vault.getAddress();
       // No deposit — vault has 0 balance; any non-zero amount triggers the error
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(1n); // _NOT_ENOUGH_FUNDS
     });
 
@@ -215,7 +215,7 @@ describe("ConfidentialVault", function () {
       const vaultAddr = await vault.getAddress();
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
       await expect(
-        vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof)
+        vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress)
       )
         .to.emit(vault, "ChequeCreated")
         .withArgs(0n, INV_HASH);
@@ -233,9 +233,9 @@ describe("ConfidentialVault", function () {
       await vault.connect(owner).depositFunds(enc, proof);
 
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
-      await expect(vault.connect(owner).cancelCheque(0))
+      await expect(vault.connect(owner).cancelCheque(0, ethers.ZeroAddress))
         .to.emit(vault, "ChequeCancelled")
         .withArgs(0n);
 
@@ -244,13 +244,13 @@ describe("ConfidentialVault", function () {
       expect(decStatus).to.equal(3n); // ChequeStatus.Cancelled
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(0n); // _NO_ERROR
 
       // Allocated balance should be released back to 0
-      await vault.connect(owner).requestAllocatedBalanceDecryption();
+      
       const allocHandle = await vault.getAllocatedBalance();
-      const allocBalance = await decryptU64(allocHandle, vaultAddr, owner);
+      const allocBalance = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, allocHandle);
       expect(allocBalance).to.equal(0n);
     });
 
@@ -262,26 +262,26 @@ describe("ConfidentialVault", function () {
       await vault.connect(owner).depositFunds(enc, proof);
 
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
       // First cancel succeeds
-      await vault.connect(owner).cancelCheque(0);
+      await vault.connect(owner).cancelCheque(0, ethers.ZeroAddress);
 
       // Second cancel on already-cancelled cheque
-      await vault.connect(owner).cancelCheque(0);
+      await vault.connect(owner).cancelCheque(0, ethers.ZeroAddress);
 
       const cheque = await vault.getCheque(0);
       const decStatus = await decryptU8(cheque.status, vaultAddr, owner);
       expect(decStatus).to.equal(3n); // still Cancelled
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(3n); // _NOT_PENDING
 
       // Allocated balance must not change on a failed cancel
-      await vault.connect(owner).requestAllocatedBalanceDecryption();
+      
       const allocHandle = await vault.getAllocatedBalance();
-      const allocBalance = await decryptU64(allocHandle, vaultAddr, owner);
+      const allocBalance = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, allocHandle);
       expect(allocBalance).to.equal(0n); // was already 0 after first cancel; second cancel must not corrupt it
     });
 
@@ -296,36 +296,36 @@ describe("ConfidentialVault", function () {
 
       // Register 2 invoices — allocatedBalance = 2 * AMOUNT
       const inv1 = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv1.encPayee, inv1.payeeProof, inv1.encAmount, inv1.amountProof, ethers.ZeroAddress);
       const inv2 = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH_2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH_2, inv2.encPayee, inv2.payeeProof, inv2.encAmount, inv2.amountProof, ethers.ZeroAddress);
 
       // Execute cheque 0 — allocatedBalance drops to AMOUNT (cheque 1 still allocated)
-      await vault.connect(payee).executeCheque(0);
+      await vault.connect(payee).executeCheque(0, ethers.ZeroAddress);
 
       // Attempt to cancel the now-executed cheque 0
-      await vault.connect(owner).cancelCheque(0);
+      await vault.connect(owner).cancelCheque(0, ethers.ZeroAddress);
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(3n); // _NOT_PENDING
 
       // Allocated balance must remain AMOUNT — cheque 1 is still pending
-      await vault.connect(owner).requestAllocatedBalanceDecryption();
+      
       const allocHandle = await vault.getAllocatedBalance();
-      const allocBalance = await decryptU64(allocHandle, vaultAddr, owner);
+      const allocBalance = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, allocHandle);
       expect(allocBalance).to.equal(AMOUNT);
     });
 
     it("reverts InvalidChequeId on out-of-range id", async function () {
       const { vault, owner } = await deployFixture();
-      await expect(vault.connect(owner).cancelCheque(0))
+      await expect(vault.connect(owner).cancelCheque(0, ethers.ZeroAddress))
         .to.be.revertedWithCustomError(vault, "InvalidChequeId");
     });
 
     it("reverts OwnableUnauthorizedAccount if not owner", async function () {
       const { vault, stranger } = await deployFixture();
-      await expect(vault.connect(stranger).cancelCheque(0))
+      await expect(vault.connect(stranger).cancelCheque(0, ethers.ZeroAddress))
         .to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount")
         .withArgs(stranger.address);
     });
@@ -342,9 +342,9 @@ describe("ConfidentialVault", function () {
       await vault.connect(owner).depositFunds(enc, proof);
 
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
-      await expect(vault.connect(payee).executeCheque(0))
+      await expect(vault.connect(payee).executeCheque(0, ethers.ZeroAddress))
         .to.emit(vault, "ChequeExecuteAttempted")
         .withArgs(0n, payee.address);
 
@@ -353,7 +353,7 @@ describe("ConfidentialVault", function () {
       expect(balance).to.equal(AMOUNT);
 
       const [errorHandle] = await vault.getLastError(payee.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, payee);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(0n); // _NO_ERROR
 
       const cheque = await vault.getCheque(0);
@@ -369,9 +369,9 @@ describe("ConfidentialVault", function () {
       await vault.connect(owner).depositFunds(enc, proof);
 
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
-      await expect(vault.connect(stranger).executeCheque(0))
+      await expect(vault.connect(stranger).executeCheque(0, ethers.ZeroAddress))
         .to.emit(vault, "ChequeExecuteAttempted")
         .withArgs(0n, stranger.address);
 
@@ -380,13 +380,13 @@ describe("ConfidentialVault", function () {
       expect(balance).to.equal(0n);
 
       const [errorHandle] = await vault.getLastError(stranger.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, stranger);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(2n); // _NOT_PAYEE
     });
 
     it("reverts InvalidChequeId on out-of-range id", async function () {
       const { vault, payee } = await deployFixture();
-      await expect(vault.connect(payee).executeCheque(0))
+      await expect(vault.connect(payee).executeCheque(0, ethers.ZeroAddress))
         .to.be.revertedWithCustomError(vault, "InvalidChequeId");
     });
 
@@ -398,20 +398,20 @@ describe("ConfidentialVault", function () {
       await vault.connect(owner).depositFunds(enc, proof);
 
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
       // First execute — succeeds
-      await vault.connect(payee).executeCheque(0);
+      await vault.connect(payee).executeCheque(0, ethers.ZeroAddress);
 
       // Second execute — cheque is no longer Pending
-      await vault.connect(payee).executeCheque(0);
+      await vault.connect(payee).executeCheque(0, ethers.ZeroAddress);
 
       const balanceHandle = await token.confidentialBalanceOf(payee.address);
       const balance = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, balanceHandle);
       expect(balance).to.equal(AMOUNT); // unchanged from first execution
 
       const [errorHandle] = await vault.getLastError(payee.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, payee);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(2n); // _NOT_PAYEE (canExecute = false when not pending)
     });
   });
@@ -434,7 +434,7 @@ describe("ConfidentialVault", function () {
       expect(ownerBalBefore).to.equal(100_000n - AMOUNT);
 
       const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
-      await expect(vault.connect(owner).withdrawFunds(witEnc, witProof))
+      await expect(vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress))
         .to.emit(vault, "FundsWithdrawn")
         .withArgs(owner.address);
 
@@ -445,7 +445,7 @@ describe("ConfidentialVault", function () {
       expect(ownerBalAfter).to.equal(100_000n);
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(0n); // _NO_ERROR
     });
     it("amount exceeds available balance: withdrawal is 0, balances unchanged, error = _NOT_ENOUGH_FUNDS", async function () {
@@ -462,7 +462,7 @@ describe("ConfidentialVault", function () {
 
       // Try to withdraw more than the vault holds — effective transfer = 0
       const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT * 2n);
-      await vault.connect(owner).withdrawFunds(witEnc, witProof);
+      await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
 
       const vaultBalAfter = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(vaultAddr));
       const ownerBalAfter = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(owner.address));
@@ -470,7 +470,7 @@ describe("ConfidentialVault", function () {
       expect(ownerBalAfter).to.equal(100_000n - AMOUNT);
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(1n); // _NOT_ENOUGH_FUNDS
     });
     it("cannot withdraw funds locked by a registered invoice", async function () {
@@ -482,14 +482,14 @@ describe("ConfidentialVault", function () {
 
       // Register an invoice that allocates the full deposit
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
 
       const vaultBalBefore = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(vaultAddr));
       const ownerBalBefore = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(owner.address));
 
       // Attempt to withdraw the allocated amount — available balance is 0
       const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
-      await vault.connect(owner).withdrawFunds(witEnc, witProof);
+      await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
 
       const vaultBalAfter = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(vaultAddr));
       const ownerBalAfter = await hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(owner.address));
@@ -497,7 +497,7 @@ describe("ConfidentialVault", function () {
       expect(ownerBalAfter).to.equal(ownerBalBefore);
 
       const [errorHandle] = await vault.getLastError(owner.address);
-      const errorCode = await decryptU8(errorHandle, vaultAddr, owner);
+      const errorCode = await hre.fhevm.debugger.decryptEuint(FhevmType.euint8, errorHandle);
       expect(errorCode).to.equal(1n); // _NOT_ENOUGH_FUNDS
     });
   });
@@ -509,16 +509,128 @@ describe("ConfidentialVault", function () {
       const { vault, owner, payee } = await deployFixture();
       const vaultAddr = await vault.getAddress();
       const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
-      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
       const [, timestamp] = await vault.getLastError(owner.address);
       expect(timestamp).to.be.gt(0n);
     });
 
-    it("requestAllocatedBalanceDecryption reverts if not owner", async function () {
+    it("grantDecryptAccess reverts if not owner", async function () {
       const { vault, stranger } = await deployFixture();
-      await expect(vault.connect(stranger).requestAllocatedBalanceDecryption())
+      await expect(vault.connect(stranger).grantDecryptAccess(stranger.address))
         .to.be.revertedWithCustomError(vault, "OwnableUnauthorizedAccount")
         .withArgs(stranger.address);
+    });
+  });
+
+  // ── _vaultBalance ────────────────────────────────────────────────────
+
+  describe("_vaultBalance", function () {
+    async function vaultBalance(vault: ConfidentialVault): Promise<bigint> {
+      return hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await vault.getVaultBalance());
+    }
+
+    it("is 0 after deployment", async function () {
+      const { vault, owner } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      expect(await vaultBalance(vault)).to.equal(0n);
+    });
+
+    it("increases by deposited amount after depositFunds", async function () {
+      const { vault, owner } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc, proof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(enc, proof);
+      expect(await vaultBalance(vault)).to.equal(AMOUNT);
+    });
+
+    it("accumulates across multiple deposits", async function () {
+      const { vault, owner } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: enc1, proof: proof1 } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(enc1, proof1);
+      const { enc: enc2, proof: proof2 } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(enc2, proof2);
+      expect(await vaultBalance(vault)).to.equal(AMOUNT * 2n);
+    });
+
+    it("decreases by withdrawn amount after withdrawFunds", async function () {
+      const { vault, owner } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(0n);
+    });
+
+    it("unchanged after a failed withdrawal (amount exceeds available)", async function () {
+      const { vault, owner } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT * 2n);
+      await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(AMOUNT);
+    });
+
+    it("decreases by cheque amount after executeCheque by real payee", async function () {
+      const { vault, owner, payee } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
+      await vault.connect(payee).executeCheque(0, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(0n);
+    });
+
+    it("unchanged after executeCheque by wrong caller (transfer is 0)", async function () {
+      const { vault, owner, payee, stranger } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
+      await vault.connect(stranger).executeCheque(0, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(AMOUNT);
+    });
+
+    it("unchanged after cancelCheque (no tokens leave the vault)", async function () {
+      const { vault, owner, payee } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
+      await vault.connect(owner).cancelCheque(0, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(AMOUNT);
+    });
+
+    it("mirrors actual token balance through deposit → register → execute → withdraw", async function () {
+      const { vault, token, owner, payee } = await deployFixture();
+      const vaultAddr = await vault.getAddress();
+
+      const tokenBalance = async () => hre.fhevm.debugger.decryptEuint(FhevmType.euint64, await token.confidentialBalanceOf(vaultAddr));
+
+      // deposit
+      const { enc: depEnc, proof: depProof } = await encryptU64(vaultAddr, owner.address, AMOUNT * 2n);
+      await vault.connect(owner).depositFunds(depEnc, depProof);
+      expect(await vaultBalance(vault)).to.equal(await tokenBalance());
+
+      // register invoice
+      const inv = await encryptForInvoice(vaultAddr, owner.address, payee.address, AMOUNT);
+      await vault.connect(owner).registerInvoice(INV_HASH, inv.encPayee, inv.payeeProof, inv.encAmount, inv.amountProof, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(await tokenBalance());
+
+      // payee executes
+      await vault.connect(payee).executeCheque(0, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(await tokenBalance());
+
+      // owner withdraws remainder
+      const { enc: witEnc, proof: witProof } = await encryptU64(vaultAddr, owner.address, AMOUNT);
+      await vault.connect(owner).withdrawFunds(witEnc, witProof, ethers.ZeroAddress);
+      expect(await vaultBalance(vault)).to.equal(0n);
+      expect(await vaultBalance(vault)).to.equal(await tokenBalance());
     });
   });
 

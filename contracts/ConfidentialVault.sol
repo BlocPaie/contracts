@@ -51,8 +51,9 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
 
     // ── State ───────────────────────────────────────────────────────────
 
-    // Available balance = IERC7984(TOKEN).confidentialBalanceOf(address(this)) - _allocatedBalance
     // All arithmetic stays in encrypted space; no on-chain decryption.
+    // Available balance = _vaultBalance - _allocatedBalance
+    euint64 private _vaultBalance;
     euint64 private _allocatedBalance;
 
     // Global incrementing ID — cheques are NOT keyed by payee because payee is encrypted.
@@ -77,9 +78,10 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
     constructor(address _owner, address _token) Ownable(_owner) {
         if (_token == address(0)) revert ZeroAddress();
         TOKEN = _token;
+        _vaultBalance = FHE.asEuint64(0);
+        FHE.allowThis(_vaultBalance);
         _allocatedBalance = FHE.asEuint64(0);
         FHE.allowThis(_allocatedBalance);
-        FHE.allow(_allocatedBalance, _owner);
         _initializeErrorCodes();
     }
 
@@ -91,6 +93,8 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 amount = FHE.fromExternal(encAmount, inputProof);
         FHE.allowTransient(amount, TOKEN);
         IERC7984(TOKEN).confidentialTransferFrom(msg.sender, address(this), amount);
+        _vaultBalance = FHE.add(_vaultBalance, amount);
+        FHE.allowThis(_vaultBalance);
         emit FundsDeposited(msg.sender);
     }
 
@@ -102,7 +106,8 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         externalEaddress encPayee,
         bytes calldata payeeProof,
         externalEuint64 encAmount,
-        bytes calldata amountProof
+        bytes calldata amountProof,
+        address decryptViewer
     ) external onlyOwner {
         if (invoiceHash == bytes32(0)) revert InvalidInvoiceHash();
         if (invoiceRegistry[invoiceHash]) revert InvoiceAlreadyRegistered();
@@ -111,15 +116,13 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 amount = FHE.fromExternal(encAmount, amountProof);
 
         // Compute available balance in encrypted space — no decryption needed.
-        euint64 total = IERC7984(TOKEN).confidentialBalanceOf(address(this));
-        euint64 available = FHE.sub(total, _allocatedBalance);
+        euint64 available = FHE.sub(_vaultBalance, _allocatedBalance);
         ebool sufficient = FHE.ge(available, amount);
 
         // If insufficient funds, effective = 0 (cheque stored but cannot be executed).
         euint64 effective = FHE.select(sufficient, amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.add(_allocatedBalance, effective);
         FHE.allowThis(_allocatedBalance);
-        FHE.allow(_allocatedBalance, owner());
 
         invoiceRegistry[invoiceHash] = true;
 
@@ -140,7 +143,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         cheque.status = FHE.asEuint8(uint8(ChequeStatus.Pending));
         FHE.allowThis(cheque.status);
 
-        _setLastError(FHE.select(sufficient, _NO_ERROR, _NOT_ENOUGH_FUNDS), msg.sender);
+        _setLastError(FHE.select(sufficient, _NO_ERROR, _NOT_ENOUGH_FUNDS), msg.sender, decryptViewer);
 
         emit ChequeCreated(chequeCount, invoiceHash);
         chequeCount++;
@@ -148,7 +151,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
 
     /// @notice Cancel a pending cheque and release its allocated balance.
     /// @dev Status updated via FHE.select — if cheque is not pending, this is a no-op with error code set.
-    function cancelCheque(uint256 chequeId) external onlyOwner {
+    function cancelCheque(uint256 chequeId, address decryptViewer) external onlyOwner {
         if (chequeId >= chequeCount) revert InvalidChequeId();
 
         ConfidentialCheque storage cheque = _cheques[chequeId];
@@ -163,27 +166,27 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 deduction = FHE.select(isPending, cheque.amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.sub(_allocatedBalance, deduction);
         FHE.allowThis(_allocatedBalance);
-        FHE.allow(_allocatedBalance, owner());
 
-        _setLastError(FHE.select(isPending, _NO_ERROR, _NOT_PENDING), msg.sender);
+        _setLastError(FHE.select(isPending, _NO_ERROR, _NOT_PENDING), msg.sender, decryptViewer);
 
         emit ChequeCancelled(chequeId);
     }
 
     /// @notice Withdraw unallocated funds from the vault.
     /// @dev If amount exceeds available balance, effective withdrawal is 0 and error code 1 is set.
-    function withdrawFunds(externalEuint64 encAmount, bytes calldata inputProof) external onlyOwner {
+    function withdrawFunds(externalEuint64 encAmount, bytes calldata inputProof, address decryptViewer) external onlyOwner {
         euint64 amount = FHE.fromExternal(encAmount, inputProof);
 
-        euint64 total = IERC7984(TOKEN).confidentialBalanceOf(address(this));
-        euint64 available = FHE.sub(total, _allocatedBalance);
+        euint64 available = FHE.sub(_vaultBalance, _allocatedBalance);
         ebool sufficient = FHE.ge(available, amount);
 
         euint64 effective = FHE.select(sufficient, amount, FHE.asEuint64(0));
         FHE.allowTransient(effective, TOKEN);
         IERC7984(TOKEN).confidentialTransfer(msg.sender, effective);
+        _vaultBalance = FHE.sub(_vaultBalance, effective);
+        FHE.allowThis(_vaultBalance);
 
-        _setLastError(FHE.select(sufficient, _NO_ERROR, _NOT_ENOUGH_FUNDS), msg.sender);
+        _setLastError(FHE.select(sufficient, _NO_ERROR, _NOT_ENOUGH_FUNDS), msg.sender, decryptViewer);
 
         emit FundsWithdrawn(msg.sender);
     }
@@ -197,7 +200,7 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
     ///      ChequeExecuteAttempted is emitted on every call regardless of outcome.
     ///      Off-chain systems must NOT treat this event as payment confirmation.
     ///      Confirmed payment is the ConfidentialTransfer event emitted by the token contract.
-    function executeCheque(uint256 chequeId) external {
+    function executeCheque(uint256 chequeId, address decryptViewer) external {
         if (chequeId >= chequeCount) revert InvalidChequeId();
 
         ConfidentialCheque storage cheque = _cheques[chequeId];
@@ -214,12 +217,13 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         euint64 transferAmount = FHE.select(canExecute, cheque.amount, FHE.asEuint64(0));
         _allocatedBalance = FHE.sub(_allocatedBalance, transferAmount);
         FHE.allowThis(_allocatedBalance);
-        FHE.allow(_allocatedBalance, owner());
+        _vaultBalance = FHE.sub(_vaultBalance, transferAmount);
+        FHE.allowThis(_vaultBalance);
 
         FHE.allowTransient(transferAmount, TOKEN);
         IERC7984(TOKEN).confidentialTransfer(msg.sender, transferAmount);
 
-        _setLastError(FHE.select(canExecute, _NO_ERROR, _NOT_PAYEE), msg.sender);
+        _setLastError(FHE.select(canExecute, _NO_ERROR, _NOT_PAYEE), msg.sender, decryptViewer);
 
         emit ChequeExecuteAttempted(chequeId, msg.sender);
     }
@@ -237,15 +241,21 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
         return chequeCount;
     }
 
+    function getVaultBalance() external view returns (euint64) {
+        return _vaultBalance;
+    }
+
     function getAllocatedBalance() external view returns (euint64) {
         return _allocatedBalance;
     }
 
-    /// @notice Grant the owner ACL access to the current _allocatedBalance handle so they
-    ///         can decrypt it off-chain. Must be called again after any state-changing function
-    ///         because each FHE operation produces a new handle whose ACL resets.
-    function requestAllocatedBalanceDecryption() external onlyOwner {
-        FHE.allow(_allocatedBalance, msg.sender);
+    /// @notice Grant a secp256k1 viewer address ACL access to decrypt vault balances off-chain.
+    ///         Required because Porto (passkey wallet) signs with WebAuthn P256, which is incompatible
+    ///         with Zama's secp256k1 ECDSA recovery. The caller generates an ephemeral secp256k1 key,
+    ///         calls this function once per session, then signs Zama's EIP-712 locally — no passkey dialog.
+    function grantDecryptAccess(address viewer) external onlyOwner {
+        FHE.allow(_vaultBalance, viewer);
+        FHE.allow(_allocatedBalance, viewer);
     }
 
     /// @notice Returns the last error handle and timestamp for a user.
@@ -257,9 +267,9 @@ contract ConfidentialVault is ZamaEthereumConfig, Ownable {
 
     // ── Internal Helpers ─────────────────────────────────────────────────
 
-    function _setLastError(euint8 error, address user) internal {
+    function _setLastError(euint8 error, address user, address decryptViewer) internal {
         FHE.allowThis(error);
-        FHE.allow(error, user);
+        FHE.allow(error, decryptViewer);
         _lastErrors[user] = LastError(error, block.timestamp);
         emit ErrorChanged(user);
     }
