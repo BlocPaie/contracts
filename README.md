@@ -76,9 +76,9 @@ ERC-7984 confidential token wrapper around USDC. All balances, transfers, and al
 
 | Contract | Address |
 |----------|---------|
-| VaultFactory | `0xfB6760E4aa9eCe674Afc05Ec8c3F5a12384FEF9C` |
-| MockUSDC | `0xf1DfBFD875a5E4dAb6a041c4da27f8F0b1b5217f` |
-| ConfidentialUSDC (cUSDC) | `0x83662eb8350e3Bf66666Bfbc673185379E11Af56` |
+| VaultFactory | `0x619B322e1D722F86294B4d7dF92B42c89B3456aB` |
+| MockUSDC | `0xe89D1caF047aEc9F7f0F3623F799F3bc321fFc9c` |
+| ConfidentialUSDC (cUSDC) | `0x8a486Fa9c123ADc482d383f9fe8A48adaD7fBc17` |
 
 ---
 
