@@ -2,6 +2,16 @@
 
 Solidity smart contracts for confidential on-chain payroll. Two vault types — a transparent ERC-20 vault and a privacy-preserving confidential vault powered by Zama's fhEVM — deployed and managed through a shared factory.
 
+## About BlocPaie
+
+BlocPaie is an invoice-to-payment platform where companies create on-chain payroll vaults and pay contractors on Ethereum — while every salary amount, payee identity, and payment status stays fully encrypted on-chain via Zama's Fully Homomorphic Encryption. Nobody on-chain, including the contract itself, can read salary values in plaintext.
+
+The blockchain acts as a **verifiability layer** — every payment registration, execution, and cancellation is permanently recorded on-chain with a cryptographic commitment, without exposing the underlying amounts or identities. This makes payroll auditable by regulatory authorities without compromising employee privacy.
+
+## Known Limitations
+
+**Ephemeral decrypt keypair** — Zama's KMS validates `userDecrypt` requests via secp256k1 ECDSA signatures. Smart contract wallets using WebAuthn P-256 passkeys (e.g. Porto) cannot sign KMS requests directly. As a workaround, the frontend generates a short-lived secp256k1 keypair (`decryptViewer`), grants it ACL access on-chain via `TFHE.allow`, uses it to sign the KMS request, then discards it. This costs an extra on-chain transaction per decrypt. EIP-1271 support in the Zama KMS would eliminate this — the KMS could call `isValidSignature` on any smart contract wallet to authorise decryption directly.
+
 ## Contracts
 
 ### VaultFactory
