@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
 import {FHE, euint64, euint8, eaddress, ebool, externalEuint64, externalEaddress} from "@fhevm/solidity/lib/FHE.sol";
